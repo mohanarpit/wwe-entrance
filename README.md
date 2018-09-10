@@ -12,6 +12,24 @@ user enters the room.
 
 The configurations for the devices and sound files are placed in config.json.
 
+### Requirements
+
+* The `arp` tool must be installed. You can check this by running the command:
+
+```bash
+$ which arp
+```
+
+* A music player that can be invoked from the command line
+
+### How To Run
+
+You can run the program by executing the following command: 
+
+```bash
+$ go run main.go -default-audio=/usr/local/bin/vlc
+```
+
 TODOs: 
 
 - [ ] Check the `nmap` and `arp` tools. They aren't giving reliable results

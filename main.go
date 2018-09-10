@@ -108,7 +108,7 @@ func remove(slice Devices, s int) Devices {
 
 func main() {
 	fmt.Printf("In the main")
-	var defaultAudioCmd = flag.String("defaultAudio", "/usr/local/bin/vlc", "Default audio player")
+	var defaultAudioCmd = flag.String("default-audio", "/usr/local/bin/vlc", "Default audio player command")
 	flag.Parse()
 	fmt.Printf("Default audio: %s", *defaultAudioCmd)
 
