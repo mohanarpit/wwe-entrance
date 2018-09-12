@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -103,28 +104,33 @@ func remove(slice Devices, s int) Devices {
 	return append(slice[:s], slice[s+1:]...)
 }
 
-func getArpOutput() ([]byte, error) {
-	return exec.Command("sh", "-c", "ifconfig | grep broadcast | arp -a | grep -v incomplete").Output()
-}
-
 func main() {
-	fmt.Printf("In the main")
 	var defaultAudioCmd = flag.String("default-audio", "/usr/local/bin/vlc", "Default audio player command")
 	var routerUsername = flag.String("username", "Admin", "The username for your router login")
 	var routerPwd = flag.String("password", "Password", "The password for your router login")
+	var propertyFile = flag.String("property-file", "config.json", "The location of the property file")
 	flag.Parse()
 
-	config, err := parsePropertyFile("config.json")
+	config, err := parsePropertyFile(*propertyFile)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Printf("Configs : %+v", config)
 
 	//Connect to the router
-	var dlink router.DlinkRouter
-	output, err := dlink.ConnectAndGetArp(*routerUsername, *routerPwd)
+	dlink := router.DlinkRouter{
+		ConnectionType: "tcp",
+		Command:        "cat /proc/net/arp",
+	}
+
+	conn, err := dlink.Connect(*routerUsername, *routerPwd, "192.168.0.1:23")
 	if err != nil {
-		fmt.Printf("Error in connecting to router: %+v", err)
+		log.Fatalln(err)
+	}
+	defer conn.Close()
+
+	output, err := dlink.GetArpOutput(conn)
+	if err != nil {
+		log.Printf("Error in connecting to router: %+v", err)
 		return
 	}
 
