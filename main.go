@@ -1,17 +1,23 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"time"
+
+	oi "github.com/reiver/go-oi"
+	"github.com/reiver/go-telnet"
 )
 
 type Config struct {
@@ -118,6 +124,13 @@ func main() {
 	}
 	fmt.Printf("Configs : %+v", config)
 
+	//Connect to the router
+	err = connectRouter()
+	if err != nil {
+		fmt.Printf("Error in connecting to router: %+v", err)
+		return
+	}
+
 	// Clear the ARP cache and rebuild it
 	// output, _ := exec.Command("sh", "-c", "sudo arp -a -d").Output()
 	// fmt.Printf("\nARP Clear Output : %s\n", output)
@@ -145,4 +158,71 @@ func main() {
 	fmt.Printf("\nNew Devices: %+v", devices)
 
 	playMusic(devices, config, *defaultAudioCmd)
+}
+
+type caller struct{}
+
+func (c caller) CallTELNET(ctx telnet.Context, w telnet.Writer, r telnet.Reader) {
+	fmt.Println("In the callTELNET")
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		oi.LongWrite(w, scanner.Bytes())
+		oi.LongWrite(w, []byte("Admin\n"))
+		oi.LongWrite(w, []byte("admin\n"))
+		oi.LongWrite(w, []byte("ls\n"))
+	}
+	var telnetResponse = make([]byte, 0)
+	bytesRead, err := r.Read(telnetResponse)
+	if err != nil {
+		fmt.Printf("%+v", err)
+	}
+	fmt.Printf("BytesRead: %d", bytesRead)
+}
+
+func connectRouter() error {
+	fmt.Println("In the connectRouter")
+	conn, err := net.Dial("tcp", "192.168.0.1:23")
+	defer conn.Close()
+
+	if err != nil {
+		return err
+	}
+	resp, err := bufio.NewReader(conn).ReadString(':')
+	fmt.Println(resp)
+	fmt.Fprintf(conn, "Admin\n")
+	resp, err = bufio.NewReader(conn).ReadString(':')
+	fmt.Println(resp)
+	fmt.Println("sent command")
+	fmt.Fprintf(conn, "admin\n")
+	fmt.Println("sent passwd")
+	resp, err = bufio.NewReader(conn).ReadString('#')
+	fmt.Println(resp)
+	fmt.Fprintf(conn, "ls\n")
+	fmt.Println("sent ls")
+	resp, err = bufio.NewReader(conn).ReadString('\n')
+	fmt.Println(resp)
+	fmt.Fprintf(conn, "\n")
+	fmt.Println("sent ls")
+	resp, err = bufio.NewReader(conn).ReadString('\n')
+	fmt.Println(resp)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func connectRouterTelnet() error {
+	fmt.Println("In the connectRouter")
+	//@TODO: Configure the TLS connection here, if you need to.
+	tlsConfig := &tls.Config{}
+
+	//@TOOD: replace "example.net:5555" with address you want to connect to.
+	err := telnet.DialToAndCallTLS("192.168.0.1:23", caller{}, tlsConfig)
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
