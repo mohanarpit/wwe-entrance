@@ -81,28 +81,30 @@ func parseArpOutput(output string) (deviceMap DeviceMap, err error) {
 	return deviceMap, nil
 }
 
-func playMusic(device DeviceInfo, config []Config, audioCmd string) error {
-	if device.MacAddress == config[0].MacAddress {
-		fmt.Printf("\nFound a match: %s", device.MacAddress)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+func playMusic(device DeviceInfo, configs []Config, audioCmd string) error {
+	for _, config := range configs {
+		if device.MacAddress == config.MacAddress {
+			fmt.Printf("\nFound a match: %s", device.MacAddress)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-		musicCmd := exec.CommandContext(ctx, "sh", "-c", audioCmd+" "+config[0].SoundFile)
-		var out bytes.Buffer
-		var stderr bytes.Buffer
-		musicCmd.Stdout = &out
-		musicCmd.Stderr = &stderr
-		err := musicCmd.Run()
-		if err != nil {
-			fmt.Printf(fmt.Sprint(err) + ": " + stderr.String())
-			return err
-		}
-		if ctx.Err() == context.DeadlineExceeded {
-			fmt.Println("Deadline exceeded")
-			return ctx.Err()
-		}
+			musicCmd := exec.CommandContext(ctx, "sh", "-c", audioCmd+" "+config.SoundFile)
+			var out bytes.Buffer
+			var stderr bytes.Buffer
+			musicCmd.Stdout = &out
+			musicCmd.Stderr = &stderr
+			err := musicCmd.Run()
+			if err != nil {
+				fmt.Printf(fmt.Sprint(err) + ": " + stderr.String())
+				return err
+			}
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Println("Deadline exceeded")
+				return ctx.Err()
+			}
 
-		fmt.Printf("\nMusic Output: %+v", out.String())
+			fmt.Printf("\nMusic Output: %+v", out.String())
+		}
 	}
 	return nil
 }
