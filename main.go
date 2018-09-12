@@ -16,16 +16,28 @@ import (
 	"github.com/mohanarpit/wwe-entrance/router"
 )
 
+// Config is the data representation of the config.json file where the user can define the
+// devices for which music must be played
 type Config struct {
 	MacAddress string `json:"mac_address"`
 	SoundFile  string `json:"sound_file"`
 }
 
+// MusicInfo is the data representation for passing the actual song file and command to be used
+type MusicInfo struct {
+	SoundFile string
+	Command   string
+}
+
+var musicChannel chan MusicInfo
+
+// DeviceInfo is the data representation of the parsed arp output
 type DeviceInfo struct {
 	IP         string
 	MacAddress string
 }
 
+// DeviceMap is the map of devices to their mac address. Makes it easy for us to check if a device is new
 type DeviceMap map[string]DeviceInfo
 
 type macAddresses []string
@@ -84,25 +96,16 @@ func parseArpOutput(output string) (deviceMap DeviceMap, err error) {
 func getSoundFile(device DeviceInfo, configs []Config) string {
 	for _, config := range configs {
 		if device.MacAddress == config.MacAddress {
-			log.Println("Found a match: ", device.MacAddress)
 			return config.SoundFile
 		}
 	}
 	return ""
 }
 
-type MusicInfo struct {
-	SoundFile string
-	Command   string
-}
-
-var musicChannel chan MusicInfo
-
 func playMusic() error {
 	for {
 		select {
 		case musicInfo := <-musicChannel:
-			log.Println("In the case")
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -124,12 +127,17 @@ func playMusic() error {
 	}
 }
 
+func getGatewayAddress() string {
+	//TODO: Get the broadcast IP instead of hardcoding it here
+	return "192.168.0.1:23"
+}
+
 func main() {
 	var defaultAudioCmd = flag.String("default-audio", "/usr/local/bin/vlc", "Default audio player command")
 	var routerUsername = flag.String("username", "Admin", "The username for your router login")
 	var routerPwd = flag.String("password", "Password", "The password for your router login")
 	var propertyFile = flag.String("property-file", "config.json", "The location of the property file")
-	var delay = flag.Int("delay", 5, "The delay (in seconds) with which the program will attempt to connect to the router")
+	var delay = flag.Int("delay", 5, "The delay (in seconds) with which the program will attempt to poll the router for connected devices")
 	flag.Parse()
 
 	config, err := parsePropertyFile(*propertyFile)
@@ -147,7 +155,7 @@ func main() {
 		Command:        "cat /proc/net/arp",
 	}
 
-	conn, err := dlink.Connect(*routerUsername, *routerPwd, "192.168.0.1:23")
+	conn, err := dlink.Connect(*routerUsername, *routerPwd, getGatewayAddress())
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -166,13 +174,12 @@ func main() {
 				return
 			}
 
-			devices, _ := parseArpOutput(string(output))
+			devices, _ := parseArpOutput(output)
 			log.Println("Devices: ", devices)
 
 			// Play the music only if a new device is connecting
 			for ip, device := range devices {
 				if _, ok := oldDevices[ip]; !ok {
-					log.Println("Found new device: " + device.MacAddress)
 					soundFile := getSoundFile(device, config)
 					if soundFile != "" {
 						// This is a new device connecting
