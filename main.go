@@ -81,32 +81,47 @@ func parseArpOutput(output string) (deviceMap DeviceMap, err error) {
 	return deviceMap, nil
 }
 
-func playMusic(device DeviceInfo, configs []Config, audioCmd string) error {
+func getSoundFile(device DeviceInfo, configs []Config) string {
 	for _, config := range configs {
 		if device.MacAddress == config.MacAddress {
-			fmt.Printf("\nFound a match: %s", device.MacAddress)
+			log.Println("Found a match: ", device.MacAddress)
+			return config.SoundFile
+		}
+	}
+	return ""
+}
+
+type MusicInfo struct {
+	SoundFile string
+	Command   string
+}
+
+var musicChannel chan MusicInfo
+
+func playMusic() error {
+	for {
+		select {
+		case musicInfo := <-musicChannel:
+			log.Println("In the case")
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			musicCmd := exec.CommandContext(ctx, "sh", "-c", audioCmd+" "+config.SoundFile)
+			musicCmd := exec.CommandContext(ctx, "sh", "-c", musicInfo.Command+" "+musicInfo.SoundFile)
 			var out bytes.Buffer
 			var stderr bytes.Buffer
 			musicCmd.Stdout = &out
 			musicCmd.Stderr = &stderr
 			err := musicCmd.Run()
 			if err != nil {
-				fmt.Printf(fmt.Sprint(err) + ": " + stderr.String())
+				log.Printf(fmt.Sprint(err) + ": " + stderr.String())
 				return err
 			}
 			if ctx.Err() == context.DeadlineExceeded {
-				fmt.Println("Deadline exceeded")
-				return ctx.Err()
+				log.Println("Deadline exceeded", ctx.Err())
+				return err
 			}
-
-			fmt.Printf("\nMusic Output: %+v", out.String())
 		}
 	}
-	return nil
 }
 
 func main() {
@@ -119,8 +134,12 @@ func main() {
 
 	config, err := parsePropertyFile(*propertyFile)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatalln(err)
 	}
+
+	// Initialize the musicInfo channel
+	musicChannel = make(chan MusicInfo)
+	go playMusic()
 
 	//Connect to the router
 	dlink := router.DlinkRouter{
@@ -134,7 +153,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	// Run the program every 5 seconds
+	// Run the program periodically to check for new devices
 	tick := time.Tick(time.Duration(*delay) * time.Second)
 	var oldDevices DeviceMap
 
@@ -148,15 +167,21 @@ func main() {
 			}
 
 			devices, _ := parseArpOutput(string(output))
-			fmt.Printf("\nDevices: %+v", devices)
+			log.Println("Devices: ", devices)
 
 			// Play the music only if a new device is connecting
 			for ip, device := range devices {
 				if _, ok := oldDevices[ip]; !ok {
-					log.Println(oldDevices[ip])
 					log.Println("Found new device: " + device.MacAddress)
-					// This is a new device connecting
-					playMusic(device, config, *defaultAudioCmd)
+					soundFile := getSoundFile(device, config)
+					if soundFile != "" {
+						// This is a new device connecting
+						musicInfo := MusicInfo{
+							SoundFile: soundFile,
+							Command:   *defaultAudioCmd,
+						}
+						musicChannel <- musicInfo
+					}
 				}
 			}
 			oldDevices = devices

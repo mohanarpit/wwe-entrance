@@ -31,6 +31,7 @@ $ go run main.go -default-audio=/usr/local/bin/vlc -username=router_admin -passw
 ```
 
 TODOs: 
-- [ ] Support for multiple clients connecting at the same time. It should enqueue the music files and play one after    another
+- [ ] Get the broadcast IP from the system instead of hardcoding it
+- [x] Support for multiple clients connecting at the same time. It should enqueue the music files and play one after    another
 - [ ] Manage statuses for devices instead of iterating over all the devices on the network
 - [ ] Currently only DLink DIR-800 router is supported. I don't have knowledge of how other routers work
