@@ -151,7 +151,7 @@ func main() {
 		Command:        "cat /proc/net/arp",
 	}
 
-	conn, err := dlink.Connect(*routerUsername, *routerPwd, getGatewayAddress())
+	conn, err := dlink.Connect(*routerUsername, *routerPwd, getGatewayAddress(), *delay)
 	if err != nil {
 		log.Fatalln(err)
 	}
