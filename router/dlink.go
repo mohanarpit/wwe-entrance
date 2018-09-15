@@ -15,7 +15,7 @@ type DlinkRouter struct {
 func (r *DlinkRouter) Connect(username string, password string, host string) (net.Conn, error) {
 	conn, err := net.Dial(r.ConnectionType, host)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to connect to router %v", err)
 	}
 	_, err = bufio.NewReader(conn).ReadString(':')
 	fmt.Fprintf(conn, username+"\n")
