@@ -29,8 +29,6 @@ type MusicInfo struct {
 	Command   string
 }
 
-var musicChannel chan MusicInfo
-
 // DeviceInfo is the data representation of the parsed arp output
 type DeviceInfo struct {
 	IP         string
@@ -102,7 +100,7 @@ func getSoundFile(device DeviceInfo, configs []Config) string {
 	return ""
 }
 
-func playMusic() error {
+func playMusic(musicChannel <-chan MusicInfo) error {
 	for {
 		select {
 		case musicInfo := <-musicChannel:
@@ -146,8 +144,8 @@ func main() {
 	}
 
 	// Initialize the musicInfo channel
-	musicChannel = make(chan MusicInfo)
-	go playMusic()
+	musicChannel := make(chan MusicInfo)
+	go playMusic(musicChannel)
 
 	//Connect to the router
 	dlink := router.DlinkRouter{
