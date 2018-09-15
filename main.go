@@ -135,7 +135,7 @@ func main() {
 	var routerUsername = flag.String("username", "Admin", "The username for your router login")
 	var routerPwd = flag.String("password", "Password", "The password for your router login")
 	var propertyFile = flag.String("property-file", "config.json", "The location of the property file")
-	var delay = flag.Int("delay", 5, "The delay (in seconds) with which the program will attempt to poll the router for connected devices")
+	var delay = flag.Duration("delay", 5, "The delay (in seconds) with which the program will attempt to poll the router for connected devices")
 	flag.Parse()
 
 	config, err := parsePropertyFile(*propertyFile)
@@ -160,7 +160,7 @@ func main() {
 	defer conn.Close()
 
 	// Run the program periodically to check for new devices
-	tick := time.Tick(time.Duration(*delay) * time.Second)
+	tick := time.Tick(*delay * time.Second)
 	var oldDevices DeviceMap
 
 	for {
