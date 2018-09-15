@@ -158,7 +158,7 @@ func main() {
 	defer conn.Close()
 
 	// Run the program periodically to check for new devices
-	tick := time.Tick(*delay * time.Second)
+	tick := time.Tick(*delay)
 	var oldDevices DeviceMap
 
 	for {
