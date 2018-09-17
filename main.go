@@ -29,8 +29,6 @@ type MusicInfo struct {
 	Command   string
 }
 
-var musicChannel chan MusicInfo
-
 // DeviceInfo is the data representation of the parsed arp output
 type DeviceInfo struct {
 	IP         string
@@ -102,27 +100,24 @@ func getSoundFile(device DeviceInfo, configs []Config) string {
 	return ""
 }
 
-func playMusic() error {
-	for {
-		select {
-		case musicInfo := <-musicChannel:
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
+func playMusic(musicChannel <-chan MusicInfo, errChan chan<- error) {
+	for musicInfo := range musicChannel {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
-			musicCmd := exec.CommandContext(ctx, "sh", "-c", musicInfo.Command+" "+musicInfo.SoundFile)
-			var out bytes.Buffer
-			var stderr bytes.Buffer
-			musicCmd.Stdout = &out
-			musicCmd.Stderr = &stderr
-			err := musicCmd.Run()
-			if err != nil {
-				log.Printf(fmt.Sprint(err) + ": " + stderr.String())
-				return err
-			}
-			if ctx.Err() == context.DeadlineExceeded {
-				log.Println("Deadline exceeded", ctx.Err())
-				return err
-			}
+		musicCmd := exec.CommandContext(ctx, "sh", "-c", musicInfo.Command+" "+musicInfo.SoundFile)
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		musicCmd.Stdout = &out
+		musicCmd.Stderr = &stderr
+		err := musicCmd.Run()
+		if err != nil {
+			log.Printf(fmt.Sprint(err) + ": " + stderr.String())
+			errChan <- err
+		}
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Println("Deadline exceeded", ctx.Err())
+			errChan <- err
 		}
 	}
 }
@@ -137,7 +132,7 @@ func main() {
 	var routerUsername = flag.String("username", "Admin", "The username for your router login")
 	var routerPwd = flag.String("password", "Password", "The password for your router login")
 	var propertyFile = flag.String("property-file", "config.json", "The location of the property file")
-	var delay = flag.Int("delay", 5, "The delay (in seconds) with which the program will attempt to poll the router for connected devices")
+	var delay = flag.Duration("delay", 5*time.Second, "The delay (in seconds) with which the program will attempt to poll the router for connected devices")
 	flag.Parse()
 
 	config, err := parsePropertyFile(*propertyFile)
@@ -146,8 +141,9 @@ func main() {
 	}
 
 	// Initialize the musicInfo channel
-	musicChannel = make(chan MusicInfo)
-	go playMusic()
+	musicChannel := make(chan MusicInfo)
+	errChan := make(chan error)
+	go playMusic(musicChannel, errChan)
 
 	//Connect to the router
 	dlink := router.DlinkRouter{
@@ -155,14 +151,14 @@ func main() {
 		Command:        "cat /proc/net/arp",
 	}
 
-	conn, err := dlink.Connect(*routerUsername, *routerPwd, getGatewayAddress())
+	conn, err := dlink.Connect(*routerUsername, *routerPwd, getGatewayAddress(), *delay)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer conn.Close()
 
 	// Run the program periodically to check for new devices
-	tick := time.Tick(time.Duration(*delay) * time.Second)
+	tick := time.Tick(*delay)
 	var oldDevices DeviceMap
 
 	for {
@@ -192,6 +188,8 @@ func main() {
 				}
 			}
 			oldDevices = devices
+		case err := <-errChan:
+			log.Fatal(err)
 		}
 	}
 }

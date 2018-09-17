@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 )
 
 type DlinkRouter struct {
@@ -12,10 +13,10 @@ type DlinkRouter struct {
 	Command        string
 }
 
-func (r *DlinkRouter) Connect(username string, password string, host string) (net.Conn, error) {
-	conn, err := net.Dial(r.ConnectionType, host)
+func (r *DlinkRouter) Connect(username, password, host string, delay time.Duration) (net.Conn, error) {
+	conn, err := net.DialTimeout(r.ConnectionType, host, delay)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to connect to router %v", err)
 	}
 	_, err = bufio.NewReader(conn).ReadString(':')
 	fmt.Fprintf(conn, username+"\n")
